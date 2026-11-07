@@ -9,6 +9,11 @@ on:
     - cron: "20 5 * * *"
     - cron: "50 12 * * *"
   workflow_dispatch:
+    inputs:
+      seed:
+        description: "Start from another copy of the files (base URL)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -42,6 +47,12 @@ jobs:
           mkdir -p site
           base=https://almoghadad.github.io/market-run-prices
           curl -fsS "$base/index.json" -o site/index.json || { rm -f site/index.json; exit 0; }
+          # One-time: the first Pages copy came from a run with a missing
+          # branch; fill it from the files Netlify still serves.
+          if [ -n "${{ inputs.seed }}" ]; then
+            base="${{ inputs.seed }}"
+            curl -fsS "$base/index.json" -o site/index.json
+          fi
           for f in $(python -c "import json; [print(b['file']) for c in json.load(open('site/index.json'))['chains'] for b in c['branches']]"); do
             curl -fsS "$base/$f" -o "site/$f" || rm -f "site/$f"
           done

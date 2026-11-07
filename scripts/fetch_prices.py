@@ -280,7 +280,10 @@ def main():
                     # Shabbat). Keep its last file unless it's gone stale.
                     prev = kept.get(store)
                     if not prev or not os.path.exists(os.path.join(OUT, prev["file"])):
-                        raise RuntimeError("no PriceFull for %s %s" % (cid, store))
+                        # Never had one: leave the branch out for now.
+                        print("%-10s %s skipped: no full list yet" % (cid, store), file=sys.stderr)
+                        stale.append("%s %s" % (cid, store))
+                        continue
                     branches.append(prev)
                     age = days_old(prev.get("priced", ""))
                     print("%-10s %s kept the file from %s (no full list today)" % (
