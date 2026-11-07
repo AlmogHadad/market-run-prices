@@ -47,8 +47,8 @@ jobs:
           mkdir -p site
           base=https://almoghadad.github.io/market-run-prices
           curl -fsS "$base/index.json" -o site/index.json || { rm -f site/index.json; exit 0; }
-          # One-time: the first Pages copy came from a run with a missing
-          # branch; fill it from the files Netlify still serves.
+          # Manual runs can start from another copy instead (used once, to
+          # move the files over from Netlify).
           if [ -n "${{ inputs.seed }}" ]; then
             base="${{ inputs.seed }}"
             curl -fsS "$base/index.json" -o site/index.json
