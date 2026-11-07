@@ -1,0 +1,67 @@
+# Fetches the Haifa supermarket price lists and publishes them to GitHub Pages
+# (https://almoghadad.github.io/market-run-prices/), where the Market Run app
+# reads them. Nothing is committed: each run deploys a fresh copy.
+name: Update prices
+
+on:
+  schedule:
+    # UTC. The chains post full lists overnight and again around midday.
+    - cron: "20 5 * * *"
+    - cron: "50 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests==2.32.3
+
+      # Start from what's published, so a branch that posts no full list
+      # today keeps its last prices.
+      - name: Download the published prices
+        run: |
+          mkdir -p site
+          base=https://almoghadad.github.io/market-run-prices
+          curl -fsS "$base/index.json" -o site/index.json || { rm -f site/index.json; exit 0; }
+          for f in $(python -c "import json; [print(b['file']) for c in json.load(open('site/index.json'))['chains'] for b in c['branches']]"); do
+            curl -fsS "$base/$f" -o "site/$f" || rm -f "site/$f"
+          done
+
+      # Keep going if one chain fails: its old files stay, and the failure is
+      # reported after the rest is published.
+      - name: Fetch prices
+        id: fetch
+        continue-on-error: true
+        run: PRICES_OUT=site python scripts/fetch_prices.py
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Report a failed fetch
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error::At least one chain failed to update; its old prices were kept."
+          exit 1
